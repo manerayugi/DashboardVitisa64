@@ -1,0 +1,18 @@
+# ตัวแปรแวดล้อมและไฟล์ความลับ
+.streamlit/
+.env
+
+# โฟลเดอร์จำลองสภาพแวดล้อม Python (ถ้ามีการสร้างไว้)
+venv/
+env/
+.venv/
+
+# ไฟล์ระบบของ macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# แคชของ Python
+__pycache__/
+*.py[cod]
+*$py.class
