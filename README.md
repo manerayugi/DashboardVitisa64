@@ -9,6 +9,39 @@
 * **Admin View:** สิทธิ์ผู้ดูแลระบบสามารถดูภาพรวมของทั้งโครงการ, ตารางสรุปผลผู้เข้าร่วมทั้งหมด, และเลือกดูข้อมูลสถิติรายบุคคลได้
 * **Data Integration:** ประมวลผลและดึงข้อมูลจาก Google Sheets (แบบ Export CSV) ทำให้ไม่กระทบกับสูตรคำนวณเดิมใน Sheet ต้นทาง
 
+## 📊 โครงสร้างข้อมูล (Cleaned Data Schema)
+โปรเจกต์นี้ดึงข้อมูลจาก Google Sheets จำนวน 2 ไฟล์ โดยข้อมูลจะต้องเป็น **หน้าที่ผ่านการ Clean และจัดกลุ่ม (Group by) มาแล้ว** (ไม่ใช่ Raw Data จาก Google Forms โดยตรง) เพื่อลดภาระการประมวลผลของแอปพลิเคชัน
+
+**1. ฟอร์มลงทะเบียน (Registration Data)**
+| ชื่อคอลัมน์ | คำอธิบาย |
+| :--- | :--- |
+| `ชื่อ_นามสกุล` | ชื่อและนามสกุลของผู้เข้าร่วมโครงการ (ไม่ต้องมีคำนำหน้า หรือเว้นวรรคให้ตรงกับฟอร์มบันทึกผล) |
+| `เบอร์ติดต่อ` | เบอร์โทรศัพท์ 10 หลัก (ระบบหลังบ้านจะช่วยลบขีดและจัดการเลข 0 ด้านหน้าให้อัตโนมัติ) |
+
+**2. ฟอร์มบันทึกผล (Log Data)**
+*ใช้สูตร `QUERY` รวบข้อมูลให้เหลือเพียง 1 บรรทัดต่อ 1 วันต่อ 1 คน*
+| ชื่อคอลัมน์ | คำอธิบาย |
+| :--- | :--- |
+| `เลือกชื่อผู้ปฏิบัติ` | ชื่อผู้เข้าร่วม (ใช้เป็น Key เชื่อมโยงกับฟอร์มลงทะเบียน) |
+| `วันที่ปฏิบัติ` | วันที่บันทึกผล รูปแบบ `DD/MM/YYYY` (เช่น 01/06/2026) |
+| `max คะแนนรอบ เช้า` | สถานะการทำสมาธิรอบเช้า (1 = ทำ, 0 หรือว่าง = ไม่ได้ทำ) |
+| `max คะแนนรอบ กลางวัน` | สถานะการทำสมาธิรอบกลางวัน (1 = ทำ, 0 หรือว่าง = ไม่ได้ทำ) |
+| `max คะแนนรอบ เย็น` | สถานะการทำสมาธิรอบเย็น (1 = ทำ, 0 หรือว่าง = ไม่ได้ทำ) |
+| `รวมของวันนั้น` | ผลรวมจำนวนครั้งที่ทำสมาธิในวันนั้น (ค่า 0 ถึง 3) |
+
+## 📸 ภาพตัวอย่างหน้าจอ (Screenshots)
+*(หมายเหตุ: ข้อมูลในภาพตัวอย่างเป็นข้อมูลจำลองเพื่อการทดสอบระบบ ไม่มีข้อมูลส่วนบุคคลจริง)*
+
+![หน้า Login](assets/screenshot_login.png)
+*หน้าเข้าสู่ระบบด้วยเบอร์โทรศัพท์หรือรหัสผ่านแอดมิน*
+
+![User Dashboard](assets/screenshot_user.png)
+![User Dashboard](assets/screenshot_user2.png)
+*หน้า Dashboard ส่วนตัว แสดงสถิติและปฏิทินการปฏิบัติธรรม*
+
+![Admin Dashboard](assets/screenshot_admin.png)
+*หน้า Admin Dashboard แสดงภาพรวมผู้เข้าร่วมทั้งโครงการ*
+
 ## 📁 โครงสร้างโปรเจกต์ (Project Structure)
 ```text
 DashboardVitisa64/
@@ -43,8 +76,8 @@ DashboardVitisa64/
    จากนั้นใส่ข้อมูล URL ของ Google Sheets (แบบ Export CSV) และเบอร์โทร Admin:
    ```toml
    [sheets]
-   reg_url = "https://docs.google.com/spreadsheets/d/e/.../pub?gid=...&single=true&output=csv"
-   log_url = "https://docs.google.com/spreadsheets/d/e/.../pub?gid=...&single=true&output=csv"
+   reg_url = "[https://docs.google.com/spreadsheets/d/e/.../pub?gid=...&single=true&output=csv](https://docs.google.com/spreadsheets/d/e/.../pub?gid=...&single=true&output=csv)"
+   log_url = "[https://docs.google.com/spreadsheets/d/e/.../pub?gid=...&single=true&output=csv](https://docs.google.com/spreadsheets/d/e/.../pub?gid=...&single=true&output=csv)"
 
    [admin]
    phone_numbers = ["089xxxxxxx", "081xxxxxxx", "รหัสผ่านแอดมิน"]
