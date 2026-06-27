@@ -4,6 +4,8 @@ import auth
 import components
 import datetime
 
+tz_th = datetime.timezone(datetime.timedelta(hours=7))
+
 st.set_page_config(page_title="Dashboard วิทิสาสมาธิ64", page_icon="🧘‍♂️", layout="wide")
 
 def main():
@@ -30,13 +32,13 @@ def main():
             # --- ส่วนของปุ่ม Refresh ---
             st.write("🔄 **อัปเดตข้อมูล**")
             if 'last_refresh' not in st.session_state:
-                st.session_state['last_refresh'] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                st.session_state['last_refresh'] = datetime.datetime.now(tz_th).strftime("%d/%m/%Y %H:%M:%S")
                 
             st.caption(f"ล่าสุด: {st.session_state['last_refresh']}")
             
             if st.button("โหลดข้อมูลใหม่", use_container_width=True):
                 dm.load_data.clear() # สั่งเคลียร์ Cache ของฟังก์ชันดึงข้อมูล
-                st.session_state['last_refresh'] = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                st.session_state['last_refresh'] = datetime.datetime.now(tz_th).strftime("%d/%m/%Y %H:%M:%S")
                 st.rerun() # รีเฟรชหน้าเว็บใหม่
                 
             st.divider()

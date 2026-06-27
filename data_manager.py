@@ -22,11 +22,11 @@ def load_data():
             df_reg['เบอร์ติดต่อ'] = df_reg['เบอร์ติดต่อ'].str.zfill(10)
             
         if 'ชื่อ_นามสกุล' in df_reg.columns:
-            df_reg['ชื่อ_นามสกุล'] = df_reg['ชื่อ_นามสกุล'].astype(str).str.strip()
+            df_reg['ชื่อ_นามสกุล'] = df_reg['ชื่อ_นามสกุล'].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip()
             
         # --- Data Cleaning ฝั่งฟอร์มบันทึกผล ---
         if 'เลือกชื่อผู้ปฏิบัติ' in df_log.columns:
-            df_log['เลือกชื่อผู้ปฏิบัติ'] = df_log['เลือกชื่อผู้ปฏิบัติ'].astype(str).str.strip()
+            df_log['เลือกชื่อผู้ปฏิบัติ'] = df_log['เลือกชื่อผู้ปฏิบัติ'].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip()
             
         # แปลงคอลัมน์วันที่ให้เป็นชนิดข้อมูล Datetime
         if 'วันที่ปฏิบัติ' in df_log.columns:
