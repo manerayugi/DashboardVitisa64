@@ -22,6 +22,7 @@ def load_data():
             df_reg['เบอร์ติดต่อ'] = df_reg['เบอร์ติดต่อ'].str.zfill(10)
             
         if 'ชื่อ_นามสกุล' in df_reg.columns:
+            # ยุบช่องว่างที่เคาะซ้ำกันหลายทีให้เหลือเคาะเดียว และตัดช่องว่างหัวท้าย
             df_reg['ชื่อ_นามสกุล'] = df_reg['ชื่อ_นามสกุล'].astype(str).str.replace(r'\s+', ' ', regex=True).str.strip()
             
         # --- Data Cleaning ฝั่งฟอร์มบันทึกผล ---
@@ -48,15 +49,21 @@ def check_user_exists(df_reg, phone_number):
     return False, None
 
 def calculate_user_stats(df_log, user_name):
-    """คำนวณสถิติส่วนตัวของผู้เข้าร่วมแต่ละคน"""
+    """คำนวณสถิติส่วนตัวของผู้เข้าร่วมแต่ละคน ทั้งแบบทำต่อเนื่องทั่วไป และแบบปฏิบัติครบ 3 เวลา"""
     user_log = df_log[df_log['เลือกชื่อผู้ปฏิบัติ'] == user_name].copy()
     
     if user_log.empty:
         return {
             "total_minutes": 0, 
             "total_days": 0, 
-            "max_streak": 0, 
-            "streak_period": "-",
+            "max_streak_any": 0, 
+            "any_start": "-",
+            "any_end": "-",
+            "streak_period_any": "-",
+            "max_streak_perfect": 0, 
+            "perfect_start": "-", 
+            "perfect_end": "-", 
+            "streak_period_perfect": "-",
             "log_data": user_log
         }
 
@@ -68,45 +75,51 @@ def calculate_user_stats(df_log, user_name):
     total_minutes = total_sessions * 5
     total_days = len(user_log)
     
-    # คำนวณ Max Streak และ Period
-    valid_dates = sorted(user_log['วันที่ปฏิบัติ'].dropna().dt.date.unique())
-    
-    max_streak = 0
-    streak_period = "-"
-    
-    if len(valid_dates) > 0:
-        current_streak = 1
-        current_start = valid_dates[0]
+    # ฟังก์ชันภายในช่วยคำนวณ Streak และดึงข้อมูลวันที่เริ่มต้น/สิ้นสุด
+    def get_streak_info(dates):
+        if len(dates) == 0:
+            return 0, "-", "-", "-"
+            
+        dates = sorted(dates)
+        current_streak, current_start = 1, dates[0]
+        max_streak, max_start, max_end = 1, dates[0], dates[0]
         
-        max_streak = 1
-        max_start = valid_dates[0]
-        max_end = valid_dates[0]
-        
-        for i in range(1, len(valid_dates)):
-            if (valid_dates[i] - valid_dates[i-1]).days == 1:
+        for i in range(1, len(dates)):
+            if (dates[i] - dates[i-1]).days == 1:
                 current_streak += 1
             else:
-                current_streak = 1
-                current_start = valid_dates[i]
+                current_streak, current_start = 1, dates[i]
             
             if current_streak >= max_streak:
                 max_streak = current_streak
                 max_start = current_start
-                max_end = valid_dates[i]
+                max_end = dates[i]
         
         start_str = max_start.strftime("%d/%m/%Y")
         end_str = max_end.strftime("%d/%m/%Y")
+        period = f"{start_str} - {end_str}" if max_streak > 1 else start_str
         
-        if max_streak > 1:
-            streak_period = f"{start_str} - {end_str}"
-        else:
-            streak_period = f"{start_str}"
+        return max_streak, start_str, end_str, period
+
+    # 1. คำนวณทำต่อเนื่องแบบเก่า (นับทุกวันที่มีการบันทึกผลเข้ามาอย่างน้อย 1 รอบ)
+    valid_dates_any = user_log['วันที่ปฏิบัติ'].dropna().dt.date.unique()
+    max_streak_any, any_start, any_end, streak_period_any = get_streak_info(valid_dates_any)
+    
+    # 2. คำนวณทำต่อเนื่องแบบใหม่ (นับเฉพาะวันที่ปฏิบัติครบ 3 ครั้งขึ้นไปเท่านั้น)
+    valid_dates_perfect = user_log[user_log['รวมของวันนั้น'] >= 3]['วันที่ปฏิบัติ'].dropna().dt.date.unique()
+    max_streak_perfect, perfect_start, perfect_end, streak_period_perfect = get_streak_info(valid_dates_perfect)
                 
     return {
         "total_minutes": total_minutes,
         "total_days": total_days,
-        "max_streak": max_streak,
-        "streak_period": streak_period,
+        "max_streak_any": max_streak_any,
+        "any_start": any_start,
+        "any_end": any_end,
+        "streak_period_any": streak_period_any,
+        "max_streak_perfect": max_streak_perfect,
+        "perfect_start": perfect_start,
+        "perfect_end": perfect_end,
+        "streak_period_perfect": streak_period_perfect,
         "log_data": user_log 
     }
 

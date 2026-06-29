@@ -4,7 +4,7 @@ import datetime
 import calendar
 import pandas as pd
 
-# ⚙️ เปลี่ยนเป้าหมายเป็น "จำนวนวันที่ทำต่อเนื่อง"
+# ⚙️ เป้าหมาย: จำนวนวันที่ทำต่อเนื่อง (แบบครบ 3 เวลา)
 CERT_TARGET_STREAK = 30
 
 def render_calendar(user_log):
@@ -120,31 +120,30 @@ def user_dashboard(df_log, target_username):
     
     stats = dm.calculate_user_stats(df_log, target_username)
     
-    # คำนวณเปอร์เซ็นต์ความสำเร็จ (ห้ามเกิน 1.0 หรือ 100%)
-    progress_val = min(stats['max_streak'] / CERT_TARGET_STREAK, 1.0)
+    progress_val = min(stats['max_streak_perfect'] / CERT_TARGET_STREAK, 1.0)
     
-    if stats['max_streak'] >= CERT_TARGET_STREAK: 
-        st.success(f"🎉 **ขอแสดงความยินดี!** ท่านปฏิบัติสมาธิติดต่อกันครบ {CERT_TARGET_STREAK} วัน และได้รับเกียรติบัตรแล้ว", icon="🏆")
+    if stats['max_streak_perfect'] >= CERT_TARGET_STREAK: 
+        st.success(f"🎉 **ขอแสดงความยินดี!** ท่านปฏิบัติสมาธิครบ 3 เวลา ติดต่อกันครบ {CERT_TARGET_STREAK} วัน และได้รับเกียรติบัตรแล้ว", icon="🏆")
         
         if 'balloons_shown' not in st.session_state:
             st.balloons()
             st.session_state['balloons_shown'] = True
     else:
-        # 📊 แสดง Progress Bar สำหรับคนที่ยังไม่ผ่านเงื่อนไข
-        st.markdown(f"**เป้าหมายเกียรติบัตร:** ทำสมาธิต่อเนื่อง {CERT_TARGET_STREAK} วัน (ปัจจุบันทำได้สูงสุด {stats['max_streak']} วัน)")
+        st.markdown(f"**เป้าหมายเกียรติบัตร:** ทำสมาธิครบ 3 เวลา ต่อเนื่อง {CERT_TARGET_STREAK} วัน (ปัจจุบันทำได้สูงสุด {stats['max_streak_perfect']} วัน)")
         st.progress(progress_val)
         
-        # คำนวณว่าขาดอีกกี่วัน
-        days_left = CERT_TARGET_STREAK - stats['max_streak']
+        days_left = CERT_TARGET_STREAK - stats['max_streak_perfect']
         st.caption(f"🔥 สู้ๆ ครับ ขาดอีกเพียง **{days_left}** วันเท่านั้น!")
     
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.metric(label="⏱️ นาทีสะสมทั้งหมด", value=f"{stats['total_minutes']:,} นาที")
     with c2:
         st.metric(label="📅 จำนวนวันที่ปฏิบัติ", value=f"{stats['total_days']:,} วัน")
     with c3:
-        st.metric(label="🔥 ทำต่อเนื่องสูงสุด", value=f"{stats['max_streak']:,} วัน", delta=stats['streak_period'], delta_color="off")
+        st.metric(label="🌟 ต่อเนื่อง (ครบ 3 เวลา)", value=f"{stats['max_streak_perfect']:,} วัน", delta=stats['streak_period_perfect'], delta_color="off")
+    with c4:
+        st.metric(label="🏃 ต่อเนื่อง (ทั่วไป)", value=f"{stats['max_streak_any']:,} วัน", delta=stats['streak_period_any'], delta_color="off")
         
     st.divider()
     
@@ -153,26 +152,16 @@ def user_dashboard(df_log, target_username):
     st.subheader("📋 ประวัติการบันทึกผล")
     if not stats['log_data'].empty:
         df_display = stats['log_data'][['วันที่ปฏิบัติ', 'max คะแนนรอบ เช้า', 'max คะแนนรอบ กลางวัน', 'max คะแนนรอบ เย็น', 'รวมของวันนั้น']].copy()
-        
-        df_display = df_display.rename(columns={
-            'max คะแนนรอบ เช้า': 'เช้า',
-            'max คะแนนรอบ กลางวัน': 'กลางวัน',
-            'max คะแนนรอบ เย็น': 'เย็น'
-        })
-        
+        df_display = df_display.rename(columns={'max คะแนนรอบ เช้า': 'เช้า', 'max คะแนนรอบ กลางวัน': 'กลางวัน', 'max คะแนนรอบ เย็น': 'เย็น'})
         df_display['วันที่ปฏิบัติ'] = df_display['วันที่ปฏิบัติ'].dt.strftime('%d/%m/%Y')
         
         for col in ['เช้า', 'กลางวัน', 'เย็น']:
             df_display[col] = df_display[col].apply(lambda x: 'ทำแล้ว' if x == 1 else 'ไม่ได้ทำ')
             
         try:
-            styled_df = df_display.style\
-                .map(style_status, subset=['เช้า', 'กลางวัน', 'เย็น'])\
-                .map(style_total_sessions, subset=['รวมของวันนั้น'])
+            styled_df = df_display.style.map(style_status, subset=['เช้า', 'กลางวัน', 'เย็น']).map(style_total_sessions, subset=['รวมของวันนั้น'])
         except AttributeError:
-            styled_df = df_display.style\
-                .applymap(style_status, subset=['เช้า', 'กลางวัน', 'เย็น'])\
-                .applymap(style_total_sessions, subset=['รวมของวันนั้น'])
+            styled_df = df_display.style.applymap(style_status, subset=['เช้า', 'กลางวัน', 'เย็น']).applymap(style_total_sessions, subset=['รวมของวันนั้น'])
             
         st.dataframe(styled_df, use_container_width=True, hide_index=True)
     else:
@@ -184,7 +173,8 @@ def admin_dashboard(df_reg, df_log):
     admin_stats = dm.calculate_admin_stats(df_log)
     total_registered = len(df_reg['ชื่อ_นามสกุล'].dropna().unique()) if not df_reg.empty else 0
     
-    # ดึงชื่อผู้เข้าร่วมจากทั้ง 2 ไฟล์เพื่อป้องกันคนตกหล่น
+    show_general_mode = st.toggle("🔄 สลับมุมมองตารางสรุปผล (ปิด: เกณฑ์ครบ 3 เวลา / เปิด: เกณฑ์ปฏิบัติทั่วไป)", value=False)
+    
     all_users = set()
     if df_reg is not None and not df_reg.empty and 'ชื่อ_นามสกุล' in df_reg.columns:
         all_users.update(df_reg['ชื่อ_นามสกุล'].dropna().tolist())
@@ -199,71 +189,89 @@ def admin_dashboard(df_reg, df_log):
             continue
             
         stats = dm.calculate_user_stats(df_log, user)
-        is_certified = stats['max_streak'] >= CERT_TARGET_STREAK
+        
+        # ✅ ให้เงื่อนไขการผ่านเกณฑ์สลับตาม Toggle
+        if show_general_mode:
+            is_certified = stats['max_streak_any'] >= CERT_TARGET_STREAK
+        else:
+            is_certified = stats['max_streak_perfect'] >= CERT_TARGET_STREAK
         
         if is_certified:
             cert_achievers += 1
             
-        summary_data.append({
-            'ชื่อ-นามสกุล': user,
-            'สถานะเกียรติบัตร': '🏆 ผ่านเกณฑ์' if is_certified else '⏳ กำลังสะสม',
-            'จำนวนครั้งที่ทำ': stats['log_data']['รวมของวันนั้น'].sum() if not stats['log_data'].empty else 0,
-            'นาทีสะสมรวม': stats['total_minutes'],
-            'จำนวนวันที่ทำ': stats['total_days'],
-            'วันที่ทำต่อเนื่องสูงสุด': stats['max_streak']
-        })
+        if show_general_mode:
+            summary_data.append({
+                'ชื่อ-นามสกุล': user,
+                'สถานะเกียรติบัตร': '🏆 ผ่านเกณฑ์' if is_certified else '⏳ กำลังสะสม',
+                'ต่อเนื่อง (ทั่วไป)': stats['max_streak_any'],
+                'เริ่ม (ทั่วไป)': stats['any_start'],
+                'สิ้นสุด (ทั่วไป)': stats['any_end'],
+                'จำนวนครั้งที่ทำ': stats['log_data']['รวมของวันนั้น'].sum() if not stats['log_data'].empty else 0,
+                'นาทีสะสมรวม': stats['total_minutes']
+            })
+        else:
+            summary_data.append({
+                'ชื่อ-นามสกุล': user,
+                'สถานะเกียรติบัตร': '🏆 ผ่านเกณฑ์' if is_certified else '⏳ กำลังสะสม',
+                'ต่อเนื่อง (ครบ 3 เวลา)': stats['max_streak_perfect'],
+                'เริ่ม (3 เวลา)': stats['perfect_start'],
+                'สิ้นสุด (3 เวลา)': stats['perfect_end'],
+                'จำนวนครั้งที่ทำ': stats['log_data']['รวมของวันนั้น'].sum() if not stats['log_data'].empty else 0,
+                'นาทีสะสมรวม': stats['total_minutes']
+            })
     
     c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.metric(label="📝 ลงทะเบียนทั้งหมด", value=f"{total_registered:,} คน")
-    with c2:
-        st.metric(label="👥 เริ่มปฏิบัติแล้ว", value=f"{admin_stats['total_users']:,} คน")
-    with c3:
-        st.metric(label="🌟 นาทีสะสมรวม", value=f"{admin_stats['total_minutes']:,} นาที")
-    with c4:
-        st.metric(label="🏆 ผ่านเกณฑ์แล้ว", value=f"{cert_achievers:,} คน")
+    with c1: st.metric(label="📝 ลงทะเบียนทั้งหมด", value=f"{total_registered:,} คน")
+    with c2: st.metric(label="👥 เริ่มปฏิบัติแล้ว", value=f"{admin_stats['total_users']:,} คน")
+    with c3: st.metric(label="🌟 นาทีสะสมรวม", value=f"{admin_stats['total_minutes']:,} นาที")
+    with c4: st.metric(label="🏆 ผ่านเกณฑ์แล้ว", value=f"{cert_achievers:,} คน")
         
     st.divider()
     
-    st.subheader("📋 ตารางสรุปข้อมูลผู้เข้าร่วมทั้งหมด")
+    if show_general_mode:
+        st.subheader("📋 ตารางสรุปข้อมูล: มุมมองปฏิบัติทั่วไป (อย่างน้อย 1 รอบ/วัน)")
+    else:
+        st.subheader("📋 ตารางสรุปข้อมูล: มุมมองผ่านเกณฑ์เกียรติบัตร (ครบ 3 เวลา/วัน)")
+        
     if summary_data:
         df_summary = pd.DataFrame(summary_data)
-        # จัดเรียงชื่อ ก-ฮ และรีเซ็ต Index เพื่อทำลำดับ
         df_summary = df_summary.sort_values(by='ชื่อ-นามสกุล', ascending=True).reset_index(drop=True)
-        # แทรกคอลัมน์ ลำดับ ไว้ที่ตำแหน่งซ้ายสุด
         df_summary.insert(0, 'ลำดับ', range(1, len(df_summary) + 1))
         
-        # ฟังก์ชันถมสีเฉพาะคนได้เกียรติบัตร
         def highlight_certified(val):
             if val == '🏆 ผ่านเกณฑ์':
                 return 'color: #047857; font-weight: bold; background-color: #ecfdf5;'
             return ''
             
-        # ฟังก์ชันไล่สเกลสีตามจำนวนวันที่ทำต่อเนื่อง (Streak)
         def style_streak(val):
             try:
                 v = int(val)
-                if v >= CERT_TARGET_STREAK: 
-                    return 'background-color: #dcfce7; color: #166534; font-weight: bold;' # เขียวเข้ม
-                elif v >= 20: 
-                    return 'background-color: #ecfccb; color: #3f6212;' # เขียวสว่าง
-                elif v >= 10: 
-                    return 'background-color: #fefce8; color: #a16207;' # เหลือง
-                elif v > 0: 
-                    return 'background-color: #ffedd5; color: #9a3412;' # ส้ม
-                else: 
-                    return 'background-color: #fee2e2; color: #991b1b;' # แดง (0 วัน)
+                if v >= CERT_TARGET_STREAK: return 'background-color: #dcfce7; color: #166534; font-weight: bold;'
+                elif v >= 20: return 'background-color: #ecfccb; color: #3f6212;'
+                elif v >= 10: return 'background-color: #fefce8; color: #a16207;'
+                elif v > 0: return 'background-color: #ffedd5; color: #9a3412;'
+                else: return 'background-color: #fee2e2; color: #991b1b;'
             except:
                 return ''
             
         try:
-            styled_summary = df_summary.style\
-                .map(highlight_certified, subset=['สถานะเกียรติบัตร'])\
-                .map(style_streak, subset=['วันที่ทำต่อเนื่องสูงสุด'])
+            if show_general_mode:
+                styled_summary = df_summary.style\
+                    .map(highlight_certified, subset=['สถานะเกียรติบัตร'])\
+                    .map(style_streak, subset=['ต่อเนื่อง (ทั่วไป)'])
+            else:
+                styled_summary = df_summary.style\
+                    .map(highlight_certified, subset=['สถานะเกียรติบัตร'])\
+                    .map(style_streak, subset=['ต่อเนื่อง (ครบ 3 เวลา)'])
         except AttributeError:
-            styled_summary = df_summary.style\
-                .applymap(highlight_certified, subset=['สถานะเกียรติบัตร'])\
-                .applymap(style_streak, subset=['วันที่ทำต่อเนื่องสูงสุด'])
+            if show_general_mode:
+                styled_summary = df_summary.style\
+                    .applymap(highlight_certified, subset=['สถานะเกียรติบัตร'])\
+                    .applymap(style_streak, subset=['ต่อเนื่อง (ทั่วไป)'])
+            else:
+                styled_summary = df_summary.style\
+                    .applymap(highlight_certified, subset=['สถานะเกียรติบัตร'])\
+                    .applymap(style_streak, subset=['ต่อเนื่อง (ครบ 3 เวลา)'])
             
         st.dataframe(styled_summary, use_container_width=True, hide_index=True)
     else:
