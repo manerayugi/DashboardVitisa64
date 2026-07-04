@@ -16,3 +16,6 @@ env/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# การตั้งค่า Claude Code เฉพาะเครื่อง (ไม่ควรแชร์ร่วมกัน)
+.claude/settings.local.json
