@@ -51,8 +51,14 @@ DashboardVitisa64/
 │   └── logo.png            # โลโก้โครงการแสดงหน้า Login
 ├── app.py                  # ไฟล์หลัก (Main/Routing)
 ├── auth.py                 # ระบบจัดการการเข้าสู่ระบบ
-├── components.py           # ระบบแสดงผลหน้าจอ (UI, ปฏิทิน, ตาราง)
-├── data_manager.py         # โลจิกดึงข้อมูล Clean ข้อมูล และคำนวณสถิติ
+├── config.py               # ค่าคงที่ที่ใช้ร่วมกัน (เกณฑ์เกียรติบัตร, timezone)
+├── data_loader.py          # ดึงข้อมูลจาก Google Sheets และ Clean ข้อมูล
+├── stats.py                # โลจิกคำนวณสถิติ/สตรีค/เกียรติบัตร
+├── ui/                     # ระบบแสดงผลหน้าจอ (UI)
+│   ├── calendar.py         #   ปฏิทินรายวัน
+│   ├── styles.py           #   ฟังก์ชันจัดสีตาราง
+│   ├── user_view.py        #   หน้าแดชบอร์ดรายบุคคล
+│   └── admin_view.py       #   หน้าแดชบอร์ด Admin
 ├── requirements.txt        # รายชื่อไลบรารีที่จำเป็น (Streamlit, Pandas)
 └── .gitignore              # ไฟล์ยกเว้นการอัปโหลดขึ้น Git
 ```

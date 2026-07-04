@@ -1,18 +1,68 @@
-import streamlit as st
-import data_manager as dm
-import auth
-import components
+"""ไฟล์หลัก (Main/Routing): จัดการ session, sidebar, และสลับหน้าจอตามสิทธิ์ผู้ใช้"""
 import datetime
 
-tz_th = datetime.timezone(datetime.timedelta(hours=7))
+import streamlit as st
+
+import auth
+import config
+import data_loader
+from ui.admin_view import admin_dashboard
+from ui.user_view import user_dashboard
 
 st.set_page_config(page_title="Dashboard วิทิสาสมาธิ64", page_icon="🧘‍♂️", layout="wide")
+
+
+def _render_sidebar():
+    """Sidebar: ทักทาย, ปุ่มโหลดข้อมูลใหม่ (เคลียร์ cache), และปุ่มออกจากระบบ"""
+    with st.sidebar:
+        st.write(f"สวัสดี, **{st.session_state['username']}**")
+        if st.session_state.get("is_admin"):
+            st.success("👑 สิทธิ์ผู้ดูแลระบบ")
+
+        st.divider()
+
+        st.write("🔄 **อัปเดตข้อมูล**")
+        if 'last_refresh' not in st.session_state:
+            st.session_state['last_refresh'] = datetime.datetime.now(config.TZ_TH).strftime("%d/%m/%Y %H:%M:%S")
+
+        st.caption(f"ล่าสุด: {st.session_state['last_refresh']}")
+
+        if st.button("โหลดข้อมูลใหม่", use_container_width=True):
+            data_loader.load_data.clear()  # สั่งเคลียร์ Cache ของฟังก์ชันดึงข้อมูล
+            st.session_state['last_refresh'] = datetime.datetime.now(config.TZ_TH).strftime("%d/%m/%Y %H:%M:%S")
+            st.rerun()
+
+        st.divider()
+        if st.button("🚪 ออกจากระบบ", use_container_width=True):
+            st.session_state.clear()
+            st.rerun()
+
+
+def _render_admin_tabs(df_reg, df_log):
+    tab_user, tab_admin = st.tabs(["👤 ข้อมูลรายบุคคล", "👑 ภาพรวมโครงการ (Admin)"])
+
+    with tab_user:
+        if df_reg is not None:
+            user_list = sorted(df_reg['ชื่อ_นามสกุล'].dropna().unique().tolist())
+            default_idx = user_list.index(st.session_state['username']) if st.session_state['username'] in user_list else 0
+            selected_user = st.selectbox("🔍 เลือกผู้ปฏิบัติสมาธิเพื่อดูข้อมูล:", user_list, index=default_idx)
+            user_dashboard(df_log, selected_user)
+
+    with tab_admin:
+        admin_dashboard(df_reg, df_log)
+
+
+def _render_user_tab(df_log):
+    tab_user, = st.tabs(["👤 ข้อมูลส่วนตัว"])
+    with tab_user:
+        user_dashboard(df_log, st.session_state['username'])
+
 
 def main():
     # โหลดข้อมูลมารอไว้เลยตั้งแต่เปิดหน้าเว็บ (เพื่อสร้าง Cache ทันที)
     try:
-        df_reg, df_log = dm.load_data()
-    except:
+        df_reg, df_log = data_loader.load_data()
+    except Exception:
         df_reg, df_log = None, None
 
     if "logged_in" not in st.session_state:
@@ -20,51 +70,16 @@ def main():
 
     if not st.session_state["logged_in"]:
         auth.login_page()
-    else:
-        # Sidebar
-        with st.sidebar:
-            st.write(f"สวัสดี, **{st.session_state['username']}**")
-            if st.session_state.get("is_admin"):
-                st.success("👑 สิทธิ์ผู้ดูแลระบบ")
-            
-            st.divider()
-            
-            # --- ส่วนของปุ่ม Refresh ---
-            st.write("🔄 **อัปเดตข้อมูล**")
-            if 'last_refresh' not in st.session_state:
-                st.session_state['last_refresh'] = datetime.datetime.now(tz_th).strftime("%d/%m/%Y %H:%M:%S")
-                
-            st.caption(f"ล่าสุด: {st.session_state['last_refresh']}")
-            
-            if st.button("โหลดข้อมูลใหม่", use_container_width=True):
-                dm.load_data.clear() # สั่งเคลียร์ Cache ของฟังก์ชันดึงข้อมูล
-                st.session_state['last_refresh'] = datetime.datetime.now(tz_th).strftime("%d/%m/%Y %H:%M:%S")
-                st.rerun() # รีเฟรชหน้าเว็บใหม่
-                
-            st.divider()
-            if st.button("🚪 ออกจากระบบ", use_container_width=True):
-                st.session_state.clear()
-                st.rerun()
+        return
 
-        # ควบคุมการแสดงผลตามสิทธิ์
-        if st.session_state.get("is_admin", False):
-            tab_user, tab_admin = st.tabs(["👤 ข้อมูลรายบุคคล", "👑 ภาพรวมโครงการ (Admin)"])
-            
-            with tab_user:
-                if df_reg is not None:
-                    user_list = df_reg['ชื่อ_นามสกุล'].dropna().unique().tolist()
-                    user_list.sort() # เรียง ก-ฮ
-                    default_idx = user_list.index(st.session_state['username']) if st.session_state['username'] in user_list else 0
-                    selected_user = st.selectbox("🔍 เลือกผู้ปฏิบัติสมาธิเพื่อดูข้อมูล:", user_list, index=default_idx)
-                    components.user_dashboard(df_log, selected_user)
-                
-            with tab_admin:
-                components.admin_dashboard(df_reg, df_log)
-                
-        else:
-            tab_user, = st.tabs(["👤 ข้อมูลส่วนตัว"])
-            with tab_user:
-                components.user_dashboard(df_log, st.session_state['username'])
+    _render_sidebar()
+
+    # ควบคุมการแสดงผลตามสิทธิ์
+    if st.session_state.get("is_admin", False):
+        _render_admin_tabs(df_reg, df_log)
+    else:
+        _render_user_tab(df_log)
+
 
 if __name__ == "__main__":
     main()

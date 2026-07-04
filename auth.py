@@ -1,21 +1,26 @@
-import streamlit as st
-import data_manager as dm
+"""ระบบเข้าสู่ระบบแบบ Single-key: ใช้เบอร์โทรศัพท์ที่ลงทะเบียนไว้ หรือรหัสผ่านแอดมิน"""
 import re
 
+import streamlit as st
+
+import data_loader
+
 try:
+    # รายชื่อ/รหัสแอดมินระดับสูง (ไม่ต้องลงทะเบียนเป็นผู้เข้าร่วมก็เข้าได้)
     ADMIN_NUMBERS = st.secrets["admin"]["phone_numbers"]
-except:
+except Exception:
     ADMIN_NUMBERS = []
 
 def login_page():
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        logo_c1, logo_c2, logo_c3 = st.columns([1, 2, 1])
-        with logo_c2:
+    """แสดงฟอร์ม login กึ่งกลางหน้าจอ พร้อมเช็คว่าเป็นผู้เข้าร่วม/แอดมินหรือไม่"""
+    _, center_col, _ = st.columns([1, 2, 1])
+    with center_col:
+        _, logo_col, _ = st.columns([1, 2, 1])
+        with logo_col:
             try:
                 st.image("assets/logo.png", use_container_width=True)
-            except:
-                pass
+            except Exception:
+                pass  # ไม่มีโลโก้ก็ไม่เป็นไร ข้ามไปแสดงหัวข้อต่อ
         
         st.markdown("<h1 style='text-align: center;'>🧘‍♂️ วิทิสาสมาธิ64</h1>", unsafe_allow_html=True)
         st.markdown("<h3 style='text-align: center;'>กรุณาเข้าสู่ระบบ</h3>", unsafe_allow_html=True)
@@ -25,13 +30,13 @@ def login_page():
 
         if st.button("เข้าสู่ระบบ", use_container_width=True):
             if password_input:
-                df_reg, _ = dm.load_data()
-                
+                df_reg, _ = data_loader.load_data()
+
                 # ทำความสะอาด input เผื่อผู้ใช้พิมพ์มาเป็นเบอร์โทร
                 clean_phone = re.sub(r'\D', '', password_input).zfill(10)
-                
+
                 # 1. เช็คว่าเป็นผู้เข้าร่วมในระบบหรือไม่
-                is_participant, user_name = dm.check_user_exists(df_reg, clean_phone)
+                is_participant, user_name = data_loader.check_user_exists(df_reg, clean_phone)
                 
                 # 2. เช็คว่ามีสิทธิ์เป็นแอดมินหรือไม่ (เช็คทั้งแบบดิบๆ และแบบเบอร์โทร)
                 is_admin = (password_input in ADMIN_NUMBERS) or (clean_phone in ADMIN_NUMBERS)
