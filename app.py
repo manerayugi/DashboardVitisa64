@@ -60,10 +60,8 @@ def _render_user_tab(df_log):
 
 def main():
     # โหลดข้อมูลมารอไว้เลยตั้งแต่เปิดหน้าเว็บ (เพื่อสร้าง Cache ทันที)
-    try:
-        df_reg, df_log = data_loader.load_data()
-    except Exception:
-        df_reg, df_log = None, None
+    # load_data() ดักข้อผิดพลาดเองแล้ว จะคืน DataFrame ว่างแทนการโยน exception ออกมา
+    df_reg, df_log = data_loader.load_data()
 
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False
