@@ -3,6 +3,8 @@
 ไฟล์นี้รับผิดชอบเฉพาะเรื่อง "เอาข้อมูลเข้ามา" และ "ทำความสะอาดให้อยู่ในรูปแบบที่ใช้งานได้"
 ส่วนการคำนวณสถิติ/เกียรติบัตรอยู่ใน stats.py
 """
+from concurrent.futures import ThreadPoolExecutor
+
 import pandas as pd
 import streamlit as st
 
@@ -11,6 +13,7 @@ import streamlit as st
 def load_data():
     """ดึงข้อมูลฟอร์มลงทะเบียนและฟอร์มบันทึกผลจาก Google Sheets แบบ Export CSV
 
+    ยิง request ทั้ง 2 ชีตพร้อมกัน (I/O-bound) แทนที่จะรอทีละอัน เพื่อลดเวลาตอน cache หมดอายุ
     แคชผลลัพธ์ไว้ 10 นาที (ttl=600) เพื่อลดจำนวนครั้งที่ต้องยิง request ไปที่ Google Sheets
     เรียก load_data.clear() เพื่อบังคับให้โหลดข้อมูลใหม่ (ใช้ในปุ่ม "โหลดข้อมูลใหม่" ที่ app.py)
     """
@@ -18,8 +21,11 @@ def load_data():
         reg_url = st.secrets["sheets"]["reg_url"]
         log_url = st.secrets["sheets"]["log_url"]
 
-        df_reg = pd.read_csv(reg_url)
-        df_log = pd.read_csv(log_url)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            reg_future = executor.submit(pd.read_csv, reg_url)
+            log_future = executor.submit(pd.read_csv, log_url)
+            df_reg = reg_future.result()
+            df_log = log_future.result()
 
         _clean_registration_df(df_reg)
         _clean_log_df(df_log)

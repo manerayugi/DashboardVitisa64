@@ -1,5 +1,6 @@
 """ไฟล์หลัก (Main/Routing): จัดการ session, sidebar, และสลับหน้าจอตามสิทธิ์ผู้ใช้"""
 import datetime
+from concurrent.futures import ThreadPoolExecutor
 
 import streamlit as st
 
@@ -57,7 +58,11 @@ def _render_admin_tabs(df_reg, df_log):
 
     with tab_org:
         # เรียกใน _render_admin_tabs (แอดมินเท่านั้น) ผู้ใช้ทั่วไปจะไม่โดนดึงข้อมูลนี้เลย
-        org_dashboard(org_loader.load_org_data(), org_loader.load_org_registration())
+        # ยิง 2 ชีตพร้อมกันแทนที่จะรอทีละอัน (ทั้งคู่แคชแยกกันอยู่แล้ว แค่เรียกพร้อมกันตอน cache หมดอายุ)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            org_log_future = executor.submit(org_loader.load_org_data)
+            org_reg_future = executor.submit(org_loader.load_org_registration)
+            org_dashboard(org_log_future.result(), org_reg_future.result())
 
 
 def _render_user_tab(df_log):
@@ -69,7 +74,9 @@ def _render_user_tab(df_log):
 def main():
     # โหลดข้อมูลมารอไว้เลยตั้งแต่เปิดหน้าเว็บ (เพื่อสร้าง Cache ทันที)
     # load_data() ดักข้อผิดพลาดเองแล้ว จะคืน DataFrame ว่างแทนการโยน exception ออกมา
-    df_reg, df_log = data_loader.load_data()
+    # spinner โชว์เฉพาะตอน cache หมดอายุ/ครั้งแรก (ปกติจะเร็วเพราะแคชไว้แล้ว 10 นาที)
+    with st.spinner("กำลังโหลดข้อมูล..."):
+        df_reg, df_log = data_loader.load_data()
 
     if "logged_in" not in st.session_state:
         st.session_state["logged_in"] = False

@@ -28,7 +28,7 @@ def _build_summary_table(df_org_log, df_org_reg):
             'บริษัท': company,
             'สถานะ': '✅ ผ่านเกณฑ์' if company_stats['is_qualified'] else '⏳ กำลังสะสม',
             'คนสมัคร': company_stats['registered_people'],
-            'คนที่บันทึกจริง': company_stats['active_people'],
+            'วันที่ปฏิบัติ (รวม)': company_stats['total_days_done'],
             'นาทีสะสม (รวม)': company_stats['total_minutes'],
             'ต่อเนื่องสูงสุด (วัน)': company_stats['max_streak_days'],
             'ช่วงต่อเนื่องสูงสุด': company_stats['max_streak_period'],
@@ -42,15 +42,17 @@ def _render_company_detail(df_org_log, company_name, registered_people):
     company_stats = org_stats.calculate_company_stats(df_org_log, company_name, registered_people)
     st.subheader(f"📅 {company_name}")
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        st.metric("👥 คนสมัคร / บันทึกจริง", f"{company_stats['registered_people']:,} / {company_stats['active_people']:,} คน")
+        st.metric("👥 คนสมัคร", f"{company_stats['registered_people']:,} คน")
     with c2:
-        st.metric("🌟 นาทีสะสม (รวม)", f"{company_stats['total_minutes']:,} นาที")
+        st.metric("📅 วันที่ปฏิบัติ (รวม)", f"{company_stats['total_days_done']:,} วัน")
     with c3:
+        st.metric("🌟 นาทีสะสม (รวม)", f"{company_stats['total_minutes']:,} นาที")
+    with c4:
         st.metric("🔥 ต่อเนื่องสูงสุด", f"{company_stats['max_streak_days']:,} วัน",
                    delta=company_stats['max_streak_period'], delta_color="off")
-    with c4:
+    with c5:
         status = "✅ ผ่านเกณฑ์แล้ว" if company_stats['is_qualified'] else "⏳ ยังไม่ผ่านเกณฑ์"
         st.metric("สถานะ", status)
 

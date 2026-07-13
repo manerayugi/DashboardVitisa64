@@ -12,7 +12,6 @@ import config
 def _empty_company_stats(registered_people=0):
     return {
         "registered_people": registered_people,
-        "active_people": 0,
         "total_minutes": 0,
         "total_days_done": 0,
         "max_streak_days": 0,
@@ -45,7 +44,7 @@ def calculate_org_summary(df_org_log, df_org_reg):
 
 
 def calculate_company_stats(df_org, company_name, registered_people=0):
-    """คำนวณสถิติของบริษัท 1 แห่ง: ยอดสมัคร/ยอดที่บันทึกจริง/นาทีสะสม และความต่อเนื่อง (streak)
+    """คำนวณสถิติของบริษัท 1 แห่ง: ยอดสมัคร/วันที่ปฏิบัติ/นาทีสะสม และความต่อเนื่อง (streak)
 
     นาทีสะสม: คนที่ส่งฟอร์มมีหน้าที่รายงานแทนทั้งบริษัท ไม่ใช่รายงานแค่ตัวเอง ดังนั้น 1 วันที่มีคนส่งฟอร์ม (ไม่ว่ากี่คน)
     ถือว่า "ทั้งบริษัท" ทำวันนั้น = จำนวนคนที่สมัคร x ORG_MINUTES_PER_PERSON_DAY นาที แล้วรวมทุกวันที่ทำ
@@ -91,7 +90,6 @@ def calculate_company_stats(df_org, company_name, registered_people=0):
 
     return {
         "registered_people": registered_people,
-        "active_people": company_log['เบอร์โทร'].nunique(),
         "total_minutes": len(active_dates) * registered_people * config.ORG_MINUTES_PER_PERSON_DAY,
         "total_days_done": len(active_dates),
         "max_streak_days": max_streak,
