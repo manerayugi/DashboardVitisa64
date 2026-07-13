@@ -30,22 +30,30 @@ def highlight_certified(val):
     return 'color: #047857; font-weight: bold; background-color: #ecfdf5;' if val == '🏆 ผ่านเกณฑ์' else ''
 
 
-def style_streak_days(val):
-    """ไล่เฉดสีตามจำนวนวันต่อเนื่องสูงสุด เทียบกับเป้าหมายเกียรติบัตร (config.CERT_TARGET_STREAK)"""
-    try:
-        v = int(val)
-        if v >= config.CERT_TARGET_STREAK:
-            return 'background-color: #dcfce7; color: #166534; font-weight: bold;'
-        elif v >= 20:
-            return 'background-color: #ecfccb; color: #3f6212;'
-        elif v >= 10:
-            return 'background-color: #fefce8; color: #a16207;'
-        elif v > 0:
-            return 'background-color: #ffedd5; color: #9a3412;'
-        else:
-            return 'background-color: #fee2e2; color: #991b1b;'
-    except (ValueError, TypeError):
-        return ''
+def make_streak_style(target):
+    """สร้างฟังก์ชันไล่เฉดสีตามจำนวนวันต่อเนื่องสูงสุด เทียบกับเป้าหมายที่กำหนด (สัดส่วน ~33%/67% ของเป้าหมาย)
+
+    ใช้ร่วมกันได้ทั้งเกียรติบัตรสมาธิรายบุคคล (config.CERT_TARGET_STREAK) และ streak องค์กร (config.ORG_STREAK_TARGET)
+    """
+    def _style(val):
+        try:
+            v = int(val)
+            if v >= target:
+                return 'background-color: #dcfce7; color: #166534; font-weight: bold;'
+            elif v >= target * 0.67:
+                return 'background-color: #ecfccb; color: #3f6212;'
+            elif v >= target * 0.33:
+                return 'background-color: #fefce8; color: #a16207;'
+            elif v > 0:
+                return 'background-color: #ffedd5; color: #9a3412;'
+            else:
+                return 'background-color: #fee2e2; color: #991b1b;'
+        except (ValueError, TypeError):
+            return ''
+    return _style
+
+
+style_streak_days = make_streak_style(config.CERT_TARGET_STREAK)
 
 
 def apply_styles(df, style_map):

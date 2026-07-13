@@ -8,3 +8,7 @@ CERT_TARGET_MINUTES_IN_30D = 360
 
 # Timezone ไทย (UTC+7) ใช้แสดงเวลา "อัปเดตล่าสุด" ใน sidebar ของ app.py
 TZ_TH = datetime.timezone(datetime.timedelta(hours=7))
+
+# เกณฑ์ผ่านสำหรับภาพรวมองค์กรภายนอก: ทำต่อเนื่อง 24 "วันทำการ"
+# เสาร์-อาทิตย์ไม่ทำไม่ถือว่า streak ขาด แต่ถ้าทำก็นับรวมเป็นวันต่อเนื่องด้วย (ดูตรรกะเต็มใน org_stats.calculate_company_stats)
+ORG_STREAK_TARGET = 24

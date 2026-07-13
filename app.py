@@ -6,7 +6,9 @@ import streamlit as st
 import auth
 import config
 import data_loader
+import org_loader
 from ui.admin_view import admin_dashboard
+from ui.org_view import org_dashboard
 from ui.user_view import user_dashboard
 
 st.set_page_config(page_title="Dashboard วิทิสาสมาธิ64", page_icon="🧘‍♂️", layout="wide")
@@ -29,6 +31,7 @@ def _render_sidebar():
 
         if st.button("โหลดข้อมูลใหม่", use_container_width=True):
             data_loader.load_data.clear()  # สั่งเคลียร์ Cache ของฟังก์ชันดึงข้อมูล
+            org_loader.load_org_data.clear()
             st.session_state['last_refresh'] = datetime.datetime.now(config.TZ_TH).strftime("%d/%m/%Y %H:%M:%S")
             st.rerun()
 
@@ -39,7 +42,7 @@ def _render_sidebar():
 
 
 def _render_admin_tabs(df_reg, df_log):
-    tab_user, tab_admin = st.tabs(["👤 ข้อมูลรายบุคคล", "👑 ภาพรวมโครงการ (Admin)"])
+    tab_user, tab_admin, tab_org = st.tabs(["👤 ข้อมูลรายบุคคล", "👑 ภาพรวมโครงการ (Admin)", "🏢 องค์กรภายนอก (Admin)"])
 
     with tab_user:
         if df_reg is not None:
@@ -50,6 +53,10 @@ def _render_admin_tabs(df_reg, df_log):
 
     with tab_admin:
         admin_dashboard(df_reg, df_log)
+
+    with tab_org:
+        # เรียกใน _render_admin_tabs (แอดมินเท่านั้น) ผู้ใช้ทั่วไปจะไม่โดนดึงข้อมูลนี้เลย
+        org_dashboard(org_loader.load_org_data())
 
 
 def _render_user_tab(df_log):

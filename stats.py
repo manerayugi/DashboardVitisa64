@@ -28,6 +28,7 @@ def _empty_user_stats(user_log, total_minutes=0, total_days=0):
         "max_streak_period": "-",
         "is_certified": False, "cert_window_minutes": 0,
         "cert_window_start": "-", "cert_window_end": "-",
+        "first_certified_date": None,
         "log_data": user_log
     }
 
@@ -73,14 +74,14 @@ def _find_cert_window(daily_full, min_date, max_date):
 
     เกณฑ์ผ่าน: ต้องมีช่วง 30 วันติดต่อกันที่ทำทุกวัน (ไม่ขาด) และนาทีรวมในช่วงนั้น >= 360
     ถ้ามีหลายช่วงที่นาทีเท่ากัน จะเลือกช่วงที่จบเร็วที่สุด (เกิดขึ้นก่อน)
-    คืนค่า (is_certified, นาทีในช่วงที่ดีที่สุด, วันเริ่ม, วันสิ้นสุด)
+    คืนค่า (is_certified, นาทีในช่วงที่ดีที่สุด, วันเริ่ม, วันสิ้นสุด, วันที่ผ่านเกณฑ์ครั้งแรก)
     """
     if len(daily_full) < config.CERT_TARGET_STREAK:
         # ประวัติสั้นกว่า 30 วัน: ยังตัดสินไม่ได้ว่าผ่านเกณฑ์ แต่โชว์นาทีสะสมทั้งหมดเป็นความคืบหน้า
         if daily_full.sum() > 0:
             cert_minutes = int(daily_full.sum() * 5)
-            return False, cert_minutes, min_date.strftime("%d/%m/%Y"), max_date.strftime("%d/%m/%Y")
-        return False, 0, "-", "-"
+            return False, cert_minutes, min_date.strftime("%d/%m/%Y"), max_date.strftime("%d/%m/%Y"), None
+        return False, 0, "-", "-", None
 
     active_days_rolling = (daily_full > 0).rolling(window=config.CERT_TARGET_STREAK).sum()
     minutes_rolling = (daily_full * 5).rolling(window=config.CERT_TARGET_STREAK).sum()
@@ -91,7 +92,7 @@ def _find_cert_window(daily_full, min_date, max_date):
     max_val = candidate_minutes.max()
 
     if pd.isna(max_val) or max_val <= 0:
-        return False, 0, "-", "-"
+        return False, 0, "-", "-", None
 
     # ใช้ .index[0] เพื่อดึงกรอบเวลาแรกสุดที่ทำคะแนนได้เท่ากับ max_val
     best_end_date = candidate_minutes[candidate_minutes == max_val].index[0]
@@ -99,7 +100,14 @@ def _find_cert_window(daily_full, min_date, max_date):
     cert_minutes = int(max_val)
     is_certified = perfect_streaks.any() and cert_minutes >= config.CERT_TARGET_MINUTES_IN_30D
 
-    return is_certified, cert_minutes, best_start_date.strftime("%d/%m/%Y"), best_end_date.strftime("%d/%m/%Y")
+    # วันที่ผ่านเกณฑ์ครั้งแรก: วันแรกสุดที่ต่อเนื่องครบ 30 วัน "และ" นาทีสะสมครบ 360 พร้อมกัน
+    # ต่างจาก best_end_date ด้านบนซึ่งเป็นช่วงที่ "นาทีสะสมเยอะสุด" ซึ่งอาจเกิดขึ้นทีหลังกว่าครั้งแรกที่ผ่านเกณฑ์จริงๆ
+    first_certified_date = None
+    if is_certified:
+        qualified = perfect_streaks & (minutes_rolling >= config.CERT_TARGET_MINUTES_IN_30D)
+        first_certified_date = qualified[qualified].index.min()
+
+    return is_certified, cert_minutes, best_start_date.strftime("%d/%m/%Y"), best_end_date.strftime("%d/%m/%Y"), first_certified_date
 
 
 def calculate_user_stats(df_log, user_name):
@@ -131,7 +139,7 @@ def calculate_user_stats(df_log, user_name):
     else:
         max_streak_period = "-"
 
-    is_certified, cert_window_minutes, cert_window_start, cert_window_end = _find_cert_window(
+    is_certified, cert_window_minutes, cert_window_start, cert_window_end, first_certified_date = _find_cert_window(
         daily_full, min_date, max_date
     )
 
@@ -145,5 +153,6 @@ def calculate_user_stats(df_log, user_name):
         "cert_window_minutes": cert_window_minutes,
         "cert_window_start": cert_window_start,
         "cert_window_end": cert_window_end,
+        "first_certified_date": first_certified_date,
         "log_data": user_log
     }

@@ -33,6 +33,7 @@ def _build_summary_table(df_log, all_users):
         summary_data.append({
             'ชื่อ-นามสกุล': user,
             'สถานะเกียรติบัตร': '🏆 ผ่านเกณฑ์' if user_stats['is_certified'] else '⏳ กำลังสะสม',
+            'วันที่ผ่านเกณฑ์ครั้งแรก': user_stats['first_certified_date'],
             'นาทีสะสม (รวม)': user_stats['total_minutes'],
             'จำนวนวันที่ทำ (รวม)': user_stats['total_days'],
             'ต่อเนื่องสูงสุด (วัน)': user_stats['max_streak_days'],
@@ -54,7 +55,13 @@ def _render_summary_table(summary_data):
         (highlight_certified, ['สถานะเกียรติบัตร']),
         (style_streak_days, ['ต่อเนื่องสูงสุด (วัน)']),
     ])
-    st.dataframe(styled_summary, use_container_width=True, hide_index=True)
+    st.dataframe(
+        styled_summary,
+        use_container_width=True,
+        hide_index=True,
+        # เก็บเป็น datetime จริงไว้ (ไม่ format เป็น string) เพื่อให้กดหัวคอลัมน์เรียงลำดับได้ถูกต้อง
+        column_config={'วันที่ผ่านเกณฑ์ครั้งแรก': st.column_config.DateColumn(format="DD/MM/YYYY")},
+    )
 
 
 def admin_dashboard(df_reg, df_log):
