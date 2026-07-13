@@ -32,6 +32,7 @@ def _render_sidebar():
         if st.button("โหลดข้อมูลใหม่", use_container_width=True):
             data_loader.load_data.clear()  # สั่งเคลียร์ Cache ของฟังก์ชันดึงข้อมูล
             org_loader.load_org_data.clear()
+            org_loader.load_org_registration.clear()
             st.session_state['last_refresh'] = datetime.datetime.now(config.TZ_TH).strftime("%d/%m/%Y %H:%M:%S")
             st.rerun()
 
@@ -56,7 +57,7 @@ def _render_admin_tabs(df_reg, df_log):
 
     with tab_org:
         # เรียกใน _render_admin_tabs (แอดมินเท่านั้น) ผู้ใช้ทั่วไปจะไม่โดนดึงข้อมูลนี้เลย
-        org_dashboard(org_loader.load_org_data())
+        org_dashboard(org_loader.load_org_data(), org_loader.load_org_registration())
 
 
 def _render_user_tab(df_log):
