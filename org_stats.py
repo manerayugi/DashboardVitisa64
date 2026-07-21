@@ -43,6 +43,139 @@ def calculate_org_summary(df_org_log, df_org_reg):
     }
 
 
+def _business_days_between(start_date, end_date):
+    """นับจำนวนวันทำการ (จันทร์-ศุกร์) รวมทั้งวันเริ่มและวันจบ"""
+    if start_date > end_date:
+        return 0
+    return len(pd.bdate_range(start_date, end_date))
+
+
+def default_forecast_periods(as_of_date=None):
+    """เดือนถัดจากเดือนปัจจุบัน จนถึงเดือนธันวาคมของปีเดียวกัน ใช้เป็นช่วงพยากรณ์เริ่มต้น (ว่างเปล่าถ้าปัจจุบันคือ/เลยธันวาคมแล้ว)"""
+    as_of_date = as_of_date or pd.Timestamp.now(tz=config.TZ_TH).tz_localize(None)
+    current_period = pd.Period(as_of_date, freq='M')
+    year_end = pd.Period(f"{as_of_date.year}-12", freq='M')
+    if current_period >= year_end:
+        return []
+    return list(pd.period_range(current_period + 1, year_end, freq='M'))
+
+
+def calculate_monthly_actual(df_org_log, company_name, registered_people, as_of_date=None):
+    """นาทีสะสมจริงรายเดือนของบริษัท 1 แห่ง ตั้งแต่เดือนแรกที่เริ่มทำจนถึงเดือนปัจจุบัน
+
+    เติม 0 ให้เดือนที่ไม่มีการทำเลยด้วย (ไม่ข้ามแถว) เพื่อให้เห็นครบทุกเดือนในช่วง
+    ใช้หลักการเดียวกับ calculate_company_stats: 1 วันที่มีคนส่งฟอร์ม = ทั้งบริษัททำวันนั้น
+    """
+    company_log = df_org_log[df_org_log['บริษัท'] == company_name]
+    if company_log.empty:
+        return pd.DataFrame(columns=['บริษัท', 'เดือน', 'วันที่ทำ', 'นาทีสะสม'])
+
+    as_of_date = as_of_date or pd.Timestamp.now(tz=config.TZ_TH).tz_localize(None)
+    active_dates = pd.Series(sorted(set(company_log['วันที่ทำ'].dt.date)))
+    counts = active_dates.groupby(pd.to_datetime(active_dates).dt.to_period('M')).size()
+
+    first_period = pd.Period(company_log['วันที่ทำ'].min(), freq='M')
+    last_period = pd.Period(as_of_date, freq='M')
+    if last_period < first_period:
+        last_period = first_period
+    counts = counts.reindex(pd.period_range(first_period, last_period, freq='M'), fill_value=0)
+
+    monthly = counts.reset_index()
+    monthly.columns = ['เดือน', 'วันที่ทำ']
+    monthly['บริษัท'] = company_name
+    monthly['นาทีสะสม'] = monthly['วันที่ทำ'] * registered_people * config.ORG_MINUTES_PER_PERSON_DAY
+    monthly['เดือน'] = monthly['เดือน'].astype(str)
+    return monthly[['บริษัท', 'เดือน', 'วันที่ทำ', 'นาทีสะสม']].reset_index(drop=True)
+
+
+def forecast_monthly(df_org_log, company_name, registered_people, future_periods, as_of_date=None):
+    """พยากรณ์นาทีของเดือนที่ยังไม่ถึง (future_periods: list ของ pd.Period freq='M')
+
+    คำนวณ 2 แบบเทียบกัน:
+    - พยากรณ์ (run-rate): ใช้อัตราการทำจริงในวันทำการที่ผ่านมา (นับจากวันแรกที่บริษัทเริ่มทำ) คูณจำนวนวันทำการของเดือนนั้น
+      สะท้อนพฤติกรรมจริง ใช้เป็นค่าหลักสำหรับกรอกประมาณการ
+    - เต็มอัตรา (100%): สมมติทำครบทุกวันทำการในเดือนนั้น (คนสมัคร x วันทำการ x นาที/คน/วัน) เป็นค่าสูงสุดที่เป็นไปได้ ไว้เทียบ
+    """
+    if not future_periods:
+        return pd.DataFrame(columns=['บริษัท', 'เดือน', 'วันทำการ', 'พยากรณ์ (run-rate)', 'เต็มอัตรา (100%)'])
+
+    as_of_date = as_of_date or pd.Timestamp.now(tz=config.TZ_TH).tz_localize(None)
+    company_log = df_org_log[df_org_log['บริษัท'] == company_name]
+
+    participation_rate = 0.0
+    if not company_log.empty and registered_people > 0:
+        active_dates = set(company_log['วันที่ทำ'].dt.date)
+        weekday_active_days = sum(1 for d in active_dates if d.weekday() < 5)
+        first_active = company_log['วันที่ทำ'].min().date()
+        elapsed_bdays = _business_days_between(first_active, as_of_date.date())
+        if elapsed_bdays > 0:
+            participation_rate = min(weekday_active_days / elapsed_bdays, 1.0)
+
+    rows = []
+    for period in future_periods:
+        bdays_in_month = _business_days_between(period.start_time.date(), period.end_time.date())
+        full_minutes = bdays_in_month * registered_people * config.ORG_MINUTES_PER_PERSON_DAY
+        rows.append({
+            'บริษัท': company_name,
+            'เดือน': str(period),
+            'วันทำการ': bdays_in_month,
+            'พยากรณ์ (run-rate)': round(full_minutes * participation_rate),
+            'เต็มอัตรา (100%)': full_minutes,
+        })
+    return pd.DataFrame(rows)
+
+
+def calculate_org_monthly_table(df_org_log, df_org_reg, future_periods, as_of_date=None):
+    """ตารางเดียวรวมนาทีสะสมรายเดือนของทุกบริษัท: แถว = บริษัท (+ แถวรวมท้ายตาราง), คอลัมน์ = เดือน (จริงก่อน พยากรณ์ทีหลัง) + คอลัมน์รวม
+
+    เดือนจริงใช้ตัวเลขที่ทำจริง (calculate_monthly_actual) ส่วนเดือนอนาคตใช้ค่าพยากรณ์แบบ run-rate (forecast_monthly)
+    เดือน/บริษัทที่ไม่มีข้อมูลใส่ 0 ทั้งหมด ไม่เว้นว่าง
+    """
+    if df_org_reg.empty:
+        return pd.DataFrame()
+
+    reg_by_company = df_org_reg.set_index('บริษัท')['จำนวนคนสมัคร'].to_dict()
+    companies = sorted(reg_by_company.keys())
+
+    actual_frames = [
+        calculate_monthly_actual(df_org_log, c, reg_by_company[c], as_of_date) for c in companies
+    ]
+    actual_frames = [f for f in actual_frames if not f.empty]
+    actual_long = (
+        pd.concat(actual_frames, ignore_index=True)[['บริษัท', 'เดือน', 'นาทีสะสม']]
+        if actual_frames else pd.DataFrame(columns=['บริษัท', 'เดือน', 'นาทีสะสม'])
+    )
+
+    forecast_frames = [
+        forecast_monthly(df_org_log, c, reg_by_company[c], future_periods, as_of_date) for c in companies
+    ]
+    forecast_frames = [f for f in forecast_frames if not f.empty]
+    forecast_long = (
+        pd.concat(forecast_frames, ignore_index=True)
+        .rename(columns={'พยากรณ์ (run-rate)': 'นาทีสะสม'})[['บริษัท', 'เดือน', 'นาทีสะสม']]
+        if forecast_frames else pd.DataFrame(columns=['บริษัท', 'เดือน', 'นาทีสะสม'])
+    )
+
+    combined = pd.concat([actual_long, forecast_long], ignore_index=True)
+    if combined.empty:
+        return pd.DataFrame({'บริษัท': companies})
+
+    pivot = combined.pivot_table(index='บริษัท', columns='เดือน', values='นาทีสะสม', aggfunc='sum', fill_value=0)
+    pivot = pivot.reindex(companies, fill_value=0)
+    pivot = pivot[sorted(pivot.columns)]
+    pivot['รวม'] = pivot.sum(axis=1)
+
+    total_row = pivot.sum(axis=0).to_frame().T
+    total_row.index = ['รวม']
+    pivot = pd.concat([pivot, total_row])
+
+    pivot.index.name = 'บริษัท'
+    pivot = pivot.reset_index()
+    for col in pivot.columns[1:]:
+        pivot[col] = pivot[col].astype(int)
+    return pivot
+
+
 def calculate_company_stats(df_org, company_name, registered_people=0):
     """คำนวณสถิติของบริษัท 1 แห่ง: ยอดสมัคร/วันที่ปฏิบัติ/นาทีสะสม และความต่อเนื่อง (streak)
 

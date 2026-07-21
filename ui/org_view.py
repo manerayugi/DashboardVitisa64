@@ -38,6 +38,23 @@ def _build_summary_table(df_org_log, df_org_reg):
     return pd.DataFrame(summary_data)
 
 
+def _render_monthly_section(actual_df, forecast_df, actual_minutes_col='นาทีสะสม'):
+    """แสดงตารางนาทีสะสมรายเดือน (จริง) + พยากรณ์เดือนถัดไป ใช้ร่วมกันทั้งภาพรวมองค์กรและรายบริษัท"""
+    st.markdown("**📆 นาทีสะสมรายเดือน (จริง)**")
+    if actual_df.empty:
+        st.caption("ยังไม่มีข้อมูล")
+    else:
+        st.dataframe(actual_df, use_container_width=True, hide_index=True)
+
+    if forecast_df is not None and not forecast_df.empty:
+        st.markdown("**🔮 พยากรณ์เดือนถัดไป**")
+        st.caption(
+            "พยากรณ์ (run-rate) = อัตราการทำจริงเฉลี่ยที่ผ่านมา x วันทำการของเดือนนั้น (ใช้ค่านี้เป็นหลักสำหรับกรอกประมาณการ) "
+            "· เต็มอัตรา (100%) = ค่าสูงสุดหากทำครบทุกวันทำการ ไว้เทียบเฉยๆ"
+        )
+        st.dataframe(forecast_df, use_container_width=True, hide_index=True)
+
+
 def _render_company_detail(df_org_log, company_name, registered_people):
     company_stats = org_stats.calculate_company_stats(df_org_log, company_name, registered_people)
     st.subheader(f"📅 {company_name}")
@@ -59,6 +76,14 @@ def _render_company_detail(df_org_log, company_name, registered_people):
     active_dates = set(df_org_log[df_org_log['บริษัท'] == company_name]['วันที่ทำ'].dt.date)
     render_company_calendar(active_dates)
 
+    st.divider()
+    future_periods = org_stats.default_forecast_periods()
+    monthly_actual = org_stats.calculate_monthly_actual(df_org_log, company_name, registered_people)
+    monthly_actual = monthly_actual.drop(columns=['บริษัท']) if not monthly_actual.empty else monthly_actual
+    monthly_forecast = org_stats.forecast_monthly(df_org_log, company_name, registered_people, future_periods)
+    monthly_forecast = monthly_forecast.drop(columns=['บริษัท']) if not monthly_forecast.empty else monthly_forecast
+    _render_monthly_section(monthly_actual, monthly_forecast)
+
 
 def org_dashboard(df_org_log, df_org_reg):
     """แดชบอร์ดภาพรวมองค์กรภายนอก: เกณฑ์ทำต่อเนื่อง 24 วันทำการ (เสาร์-อาทิตย์ไม่ทำไม่ถือว่าขาด)"""
@@ -76,6 +101,16 @@ def org_dashboard(df_org_log, df_org_reg):
         st.metric("👥 คนที่สมัครทั้งหมด", f"{org_summary['total_registered_people']:,} คน")
     with c3:
         st.metric("🌟 นาทีสะสมรวม (บันทึกจริง)", f"{org_summary['total_minutes']:,} นาที")
+
+    st.divider()
+    st.markdown("**📆 นาทีสะสมรายเดือน แยกตามบริษัท (จริง + พยากรณ์ run-rate)**")
+    st.caption("เดือนที่ผ่านมาแล้วคือตัวเลขจริง เดือนที่ยังไม่ถึงเป็นค่าพยากรณ์แบบ run-rate (อัตราการทำจริงเฉลี่ย x วันทำการของเดือนนั้น) เดือน/บริษัทที่ไม่มีข้อมูลแสดงเป็น 0")
+    future_periods = org_stats.default_forecast_periods()
+    org_monthly_table = org_stats.calculate_org_monthly_table(df_org_log, df_org_reg, future_periods)
+    if org_monthly_table.empty:
+        st.caption("ยังไม่มีข้อมูล")
+    else:
+        st.dataframe(org_monthly_table, use_container_width=True, hide_index=True)
 
     st.divider()
     st.caption(f"เกณฑ์ความต่อเนื่อง: ทำต่อเนื่อง {config.ORG_STREAK_TARGET} วันทำการ (เสาร์-อาทิตย์ไม่ทำไม่ถือว่าขาด แต่ถ้าทำก็นับรวมด้วย)")

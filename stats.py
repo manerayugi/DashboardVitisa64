@@ -110,6 +110,57 @@ def _find_cert_window(daily_full, min_date, max_date):
     return is_certified, cert_minutes, best_start_date.strftime("%d/%m/%Y"), best_end_date.strftime("%d/%m/%Y"), first_certified_date
 
 
+def calculate_monthly_actual(df_log, user_name, as_of_date=None):
+    """นาทีสะสมจริงรายเดือนของผู้ปฏิบัติ 1 คน ตั้งแต่เดือนแรกที่เริ่มทำจนถึงเดือนปัจจุบัน
+
+    เติม 0 ให้เดือนที่ไม่ได้ทำเลยด้วย (ไม่ข้ามแถว) เพื่อให้เห็นครบทุกเดือนในช่วง
+    """
+    user_log = df_log[df_log['เลือกชื่อผู้ปฏิบัติ'] == user_name]
+    if user_log.empty:
+        return pd.DataFrame(columns=['ชื่อ-นามสกุล', 'เดือน', 'นาทีสะสม'])
+
+    as_of_date = as_of_date or pd.Timestamp.now(tz=config.TZ_TH).tz_localize(None)
+    monthly_minutes = (user_log.groupby(user_log['วันที่ปฏิบัติ'].dt.to_period('M'))['รวมของวันนั้น'].sum() * 5)
+
+    first_period = pd.Period(user_log['วันที่ปฏิบัติ'].min(), freq='M')
+    last_period = pd.Period(as_of_date, freq='M')
+    if last_period < first_period:
+        last_period = first_period
+    monthly_minutes = monthly_minutes.reindex(pd.period_range(first_period, last_period, freq='M'), fill_value=0)
+
+    monthly = monthly_minutes.reset_index()
+    monthly.columns = ['เดือน', 'นาทีสะสม']
+    monthly['ชื่อ-นามสกุล'] = user_name
+    monthly['นาทีสะสม'] = monthly['นาทีสะสม'].astype(int)
+    monthly['เดือน'] = monthly['เดือน'].astype(str)
+    return monthly[['ชื่อ-นามสกุล', 'เดือน', 'นาทีสะสม']].reset_index(drop=True)
+
+
+def calculate_users_monthly_table(df_log, all_users, as_of_date=None):
+    """ตาราง wide นาทีสะสมรายเดือนของทุกคน: แถว = ชื่อ-นามสกุล, คอลัมน์ = เดือน
+
+    ใช้ต่อเข้ากับตารางสรุปรายบุคคลของ Admin คนที่ไม่มีข้อมูลในเดือนนั้น (ยังไม่เริ่ม/ไม่ได้ทำ) แสดงเป็น 0 ไม่เว้นว่าง
+    """
+    names = sorted(u for u in all_users if str(u).strip())
+    if df_log.empty or not names:
+        return pd.DataFrame({'ชื่อ-นามสกุล': names})
+
+    frames = [calculate_monthly_actual(df_log, name, as_of_date) for name in names]
+    frames = [f for f in frames if not f.empty]
+    if not frames:
+        return pd.DataFrame({'ชื่อ-นามสกุล': names})
+
+    combined = pd.concat(frames, ignore_index=True)
+    pivot = combined.pivot_table(index='ชื่อ-นามสกุล', columns='เดือน', values='นาทีสะสม', aggfunc='sum', fill_value=0)
+    pivot = pivot.reindex(names, fill_value=0)
+    pivot = pivot[sorted(pivot.columns)]
+    pivot.index.name = 'ชื่อ-นามสกุล'
+    pivot = pivot.reset_index()
+    for col in pivot.columns[1:]:
+        pivot[col] = pivot[col].astype(int)
+    return pivot
+
+
 def calculate_user_stats(df_log, user_name):
     """คำนวณสถิติของผู้ปฏิบัติ 1 คน ตามเกณฑ์เกียรติบัตร: ต่อเนื่อง 30 วัน + นาทีสะสม >= 360 ในช่วงนั้น"""
     user_log = df_log[df_log['เลือกชื่อผู้ปฏิบัติ'] == user_name].copy()

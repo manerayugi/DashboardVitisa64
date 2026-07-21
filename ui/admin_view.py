@@ -46,9 +46,15 @@ def _build_summary_table(df_log, all_users):
     return summary_data, cert_achievers
 
 
-def _render_summary_table(summary_data):
+def _render_summary_table(summary_data, monthly_table):
     df_summary = pd.DataFrame(summary_data)
     df_summary = df_summary.sort_values(by='ชื่อ-นามสกุล', ascending=True).reset_index(drop=True)
+
+    if not monthly_table.empty:
+        month_cols = [c for c in monthly_table.columns if c != 'ชื่อ-นามสกุล']
+        df_summary = df_summary.merge(monthly_table, on='ชื่อ-นามสกุล', how='left')
+        df_summary[month_cols] = df_summary[month_cols].fillna(0).astype(int)
+
     df_summary.insert(0, 'ลำดับ', range(1, len(df_summary) + 1))
 
     styled_summary = apply_styles(df_summary, [
@@ -72,6 +78,7 @@ def admin_dashboard(df_reg, df_log):
 
     all_users = _collect_all_usernames(df_reg, df_log)
     summary_data, cert_achievers = _build_summary_table(df_log, all_users)
+    monthly_table = stats.calculate_users_monthly_table(df_log, all_users)
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
@@ -87,6 +94,6 @@ def admin_dashboard(df_reg, df_log):
     st.subheader("📋 ตารางสรุปข้อมูลสถิติผู้เข้าร่วมโครงการ")
 
     if summary_data:
-        _render_summary_table(summary_data)
+        _render_summary_table(summary_data, monthly_table)
     else:
         st.info("ยังไม่มีข้อมูลการปฏิบัติในโครงการ")
