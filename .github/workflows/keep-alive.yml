@@ -2,12 +2,14 @@ name: Keep TarotTrader App Awake
 
 # TarotTraderJournal (https://tarottraderjournal.onrender.com) runs on Render's free
 # tier, which spins the app down after ~15 min of no inbound traffic. Ping it every
-# 10 min (with margin for GitHub's own scheduling delays) so it never idles out.
+# 12 min (with margin for GitHub's own scheduling delays) so it never idles out.
+# Only runs noon-midnight Thailand time (UTC+7 → 05:00-16:59 UTC), since the app
+# sees little use after midnight local time.
 # Lives in this repo (not the TarotTrader repo) because this repo is public, so
 # GitHub Actions minutes are unlimited/free here — the TarotTrader repo is private.
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '*/12 5-16 * * *'
   workflow_dispatch: {}
 
 jobs:
