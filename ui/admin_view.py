@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 
 import stats
+from ui.formatting import as_nullable_int
 from ui.styles import apply_styles, highlight_certified, style_streak_days
 
 
@@ -41,6 +42,7 @@ def _build_summary_table(df_log, all_users):
             'รอบ 30 วันที่ผ่านเกณฑ์': best_period,
             'ช่วงวันที่ทำต่อเนื่อง': user_stats['max_streak_period'],
             'นาทีรวมช่วงต่อเนื่อง': user_stats['minutes_in_max_streak'],
+            'ไม่ได้ทำสมาธิมา (วัน)': user_stats['days_since_last_practice'],
         })
 
     return summary_data, cert_achievers
@@ -49,6 +51,7 @@ def _build_summary_table(df_log, all_users):
 def _render_summary_table(summary_data, monthly_table):
     df_summary = pd.DataFrame(summary_data)
     df_summary = df_summary.sort_values(by='ชื่อ-นามสกุล', ascending=True).reset_index(drop=True)
+    df_summary['ไม่ได้ทำสมาธิมา (วัน)'] = as_nullable_int(df_summary['ไม่ได้ทำสมาธิมา (วัน)'])
 
     if not monthly_table.empty:
         month_cols = [c for c in monthly_table.columns if c != 'ชื่อ-นามสกุล']

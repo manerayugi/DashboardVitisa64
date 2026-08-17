@@ -4,6 +4,7 @@ import streamlit as st
 import config
 import stats
 from ui.calendar import render_calendar
+from ui.formatting import format_days_since
 from ui.styles import apply_styles, style_status, style_total_sessions
 
 
@@ -64,7 +65,7 @@ def user_dashboard(df_log, target_username):
 
     _render_certification_banner(user_stats)
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         st.metric(label="📅 วันที่ปฏิบัติ (รวม)", value=f"{user_stats['total_days']:,} วัน")
     with c2:
@@ -73,6 +74,8 @@ def user_dashboard(df_log, target_username):
         st.metric(label="🔥 ทำต่อเนื่องสูงสุด", value=f"{user_stats['max_streak_days']:,} วัน", delta=user_stats['max_streak_period'], delta_color="off")
     with c4:
         st.metric(label="🌟 นาทีรวมช่วงต่อเนื่อง", value=f"{user_stats['minutes_in_max_streak']:,} นาที", delta="คิดจากรอบต่อเนื่องสูงสุด", delta_color="off")
+    with c5:
+        st.metric(label="⏳ ไม่ได้ทำสมาธิมา", value=format_days_since(user_stats['days_since_last_practice']))
 
     st.divider()
     render_calendar(user_stats['log_data'])

@@ -5,6 +5,7 @@ import streamlit as st
 import config
 import org_stats
 from ui.calendar import render_company_calendar
+from ui.formatting import as_nullable_int, format_days_since
 from ui.styles import apply_styles, make_streak_style
 
 
@@ -34,8 +35,12 @@ def _build_summary_table(df_org_log, df_org_reg):
             'ช่วงต่อเนื่องสูงสุด': company_stats['max_streak_period'],
             'วันที่ผ่านเกณฑ์ครั้งแรก': company_stats['first_qualified_date'],
             'วันที่ทำล่าสุด': company_stats['last_active_date'],
+            'ไม่ได้ทำสมาธิมา (วัน)': company_stats['days_since_last_active'],
         })
-    return pd.DataFrame(summary_data)
+    df_summary = pd.DataFrame(summary_data)
+    if not df_summary.empty:
+        df_summary['ไม่ได้ทำสมาธิมา (วัน)'] = as_nullable_int(df_summary['ไม่ได้ทำสมาธิมา (วัน)'])
+    return df_summary
 
 
 def _render_monthly_section(actual_df, forecast_df, actual_minutes_col='นาทีสะสม'):
@@ -59,7 +64,7 @@ def _render_company_detail(df_org_log, company_name, registered_people):
     company_stats = org_stats.calculate_company_stats(df_org_log, company_name, registered_people)
     st.subheader(f"📅 {company_name}")
 
-    c1, c2, c3, c4, c5 = st.columns(5)
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
         st.metric("👥 คนสมัคร", f"{company_stats['registered_people']:,} คน")
     with c2:
@@ -72,6 +77,8 @@ def _render_company_detail(df_org_log, company_name, registered_people):
     with c5:
         status = "✅ ผ่านเกณฑ์แล้ว" if company_stats['is_qualified'] else "⏳ ยังไม่ผ่านเกณฑ์"
         st.metric("สถานะ", status)
+    with c6:
+        st.metric("⏳ ไม่ได้ทำสมาธิมา", format_days_since(company_stats['days_since_last_active']))
 
     active_dates = set(df_org_log[df_org_log['บริษัท'] == company_name]['วันที่ทำ'].dt.date)
     render_company_calendar(active_dates)
@@ -94,13 +101,15 @@ def org_dashboard(df_org_log, df_org_reg):
         return
 
     org_summary = org_stats.calculate_org_summary(df_org_log, df_org_reg)
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     with c1:
         st.metric("🏢 บริษัทที่สมัคร", f"{org_summary['total_companies']:,} บริษัท")
     with c2:
         st.metric("👥 คนที่สมัครทั้งหมด", f"{org_summary['total_registered_people']:,} คน")
     with c3:
         st.metric("🌟 นาทีสะสมรวม (บันทึกจริง)", f"{org_summary['total_minutes']:,} นาที")
+    with c4:
+        st.metric("⏳ ไม่ได้ทำสมาธิมา (รวมทุกบริษัท)", format_days_since(org_summary['days_since_last_active']))
 
     st.divider()
     st.markdown("**📆 นาทีสะสมรายเดือน แยกตามบริษัท (จริง + พยากรณ์ run-rate)**")

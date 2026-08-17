@@ -29,6 +29,7 @@ def _empty_user_stats(user_log, total_minutes=0, total_days=0):
         "is_certified": False, "cert_window_minutes": 0,
         "cert_window_start": "-", "cert_window_end": "-",
         "first_certified_date": None,
+        "last_active_date": None, "days_since_last_practice": None,
         "log_data": user_log
     }
 
@@ -161,8 +162,9 @@ def calculate_users_monthly_table(df_log, all_users, as_of_date=None):
     return pivot
 
 
-def calculate_user_stats(df_log, user_name):
+def calculate_user_stats(df_log, user_name, as_of_date=None):
     """คำนวณสถิติของผู้ปฏิบัติ 1 คน ตามเกณฑ์เกียรติบัตร: ต่อเนื่อง 30 วัน + นาทีสะสม >= 360 ในช่วงนั้น"""
+    as_of_date = as_of_date or pd.Timestamp.now(tz=config.TZ_TH).tz_localize(None)
     user_log = df_log[df_log['เลือกชื่อผู้ปฏิบัติ'] == user_name].copy()
 
     if user_log.empty:
@@ -182,6 +184,8 @@ def calculate_user_stats(df_log, user_name):
 
     min_date, max_date = daily_series.index.min(), daily_series.index.max()
     daily_full = daily_series.reindex(pd.date_range(start=min_date, end=max_date), fill_value=0)
+    # .normalize() ตัดเวลาออกก่อนลบ (as_of_date มีเวลาปนมาจาก pd.Timestamp.now()) ไม่งั้นวันเดียวกันจะได้ผลลบเป็นเศษวัน
+    days_since_last_practice = (as_of_date.normalize() - max_date.normalize()).days
 
     max_streak, max_streak_mins, max_start, max_end = _find_max_streak(daily_full)
     if max_streak > 0:
@@ -205,5 +209,7 @@ def calculate_user_stats(df_log, user_name):
         "cert_window_start": cert_window_start,
         "cert_window_end": cert_window_end,
         "first_certified_date": first_certified_date,
+        "last_active_date": max_date,
+        "days_since_last_practice": days_since_last_practice,
         "log_data": user_log
     }

@@ -19,27 +19,42 @@ def _empty_company_stats(registered_people=0):
         "is_qualified": False,
         "first_qualified_date": None,
         "last_active_date": None,
+        "days_since_last_active": None,
     }
 
 
-def calculate_org_summary(df_org_log, df_org_reg):
+def calculate_org_summary(df_org_log, df_org_reg, as_of_date=None):
     """สรุปภาพรวมองค์กรภายนอกทั้งหมด: จำนวนบริษัทที่สมัคร, จำนวนคนที่สมัคร, นาทีสะสมรวมที่บันทึกจริง
 
     รวมนาทีสะสมจากทุกบริษัท (ดูสูตรเต็มใน calculate_company_stats)
     """
     if df_org_reg.empty:
-        return {"total_companies": 0, "total_registered_people": 0, "total_minutes": 0}
+        return {
+            "total_companies": 0, "total_registered_people": 0, "total_minutes": 0,
+            "last_active_date": None, "days_since_last_active": None,
+        }
 
+    as_of_date = as_of_date or pd.Timestamp.now(tz=config.TZ_TH).tz_localize(None)
     reg_by_company = df_org_reg.set_index('บริษัท')['จำนวนคนสมัคร'].to_dict()
     total_minutes = sum(
         calculate_company_stats(df_org_log, company, registered)['total_minutes']
         for company, registered in reg_by_company.items()
     )
 
+    # หา max ตรงจาก log รวมทั้งหมด (ไม่วนลูปต่อบริษัทเหมือน total_minutes ด้านบน) เพราะแค่ต้องการ
+    # วันล่าสุดที่ "มีบริษัทไหนก็ได้" ทำ ไม่ต้องแยกรายบริษัท
+    last_active_date = df_org_log['วันที่ทำ'].max() if not df_org_log.empty else None
+    days_since_last_active = None
+    if last_active_date is not None and pd.notna(last_active_date):
+        # .normalize() ตัดเวลาออกก่อนลบ (as_of_date มีเวลาปนมาจาก pd.Timestamp.now())
+        days_since_last_active = (as_of_date.normalize() - last_active_date.normalize()).days
+
     return {
         "total_companies": df_org_reg['บริษัท'].nunique(),
         "total_registered_people": int(df_org_reg['จำนวนคนสมัคร'].sum()),
         "total_minutes": total_minutes,
+        "last_active_date": last_active_date,
+        "days_since_last_active": days_since_last_active,
     }
 
 
@@ -176,7 +191,7 @@ def calculate_org_monthly_table(df_org_log, df_org_reg, future_periods, as_of_da
     return pivot
 
 
-def calculate_company_stats(df_org, company_name, registered_people=0):
+def calculate_company_stats(df_org, company_name, registered_people=0, as_of_date=None):
     """คำนวณสถิติของบริษัท 1 แห่ง: ยอดสมัคร/วันที่ปฏิบัติ/นาทีสะสม และความต่อเนื่อง (streak)
 
     นาทีสะสม: คนที่ส่งฟอร์มมีหน้าที่รายงานแทนทั้งบริษัท ไม่ใช่รายงานแค่ตัวเอง ดังนั้น 1 วันที่มีคนส่งฟอร์ม (ไม่ว่ากี่คน)
@@ -185,6 +200,7 @@ def calculate_company_stats(df_org, company_name, registered_people=0):
     ไล่ทีละวันตามลำดับเวลา: วันทำการ (จันทร์-ศุกร์) ต้องทำถึงจะนับต่อเนื่อง ขาดวันใดวันหนึ่ง
     streak ขาดทันที ส่วนเสาร์-อาทิตย์ข้ามได้โดยไม่กระทบ streak แต่ถ้าทำก็ยังนับรวมเป็นวันต่อเนื่อง
     """
+    as_of_date = as_of_date or pd.Timestamp.now(tz=config.TZ_TH).tz_localize(None)
     company_log = df_org[df_org['บริษัท'] == company_name]
     if company_log.empty:
         return _empty_company_stats(registered_people)
@@ -230,4 +246,6 @@ def calculate_company_stats(df_org, company_name, registered_people=0):
         "is_qualified": max_streak >= config.ORG_STREAK_TARGET,
         "first_qualified_date": first_qualified_date,
         "last_active_date": max_date,
+        # .normalize() ตัดเวลาออกก่อนลบ (as_of_date มีเวลาปนมาจาก pd.Timestamp.now())
+        "days_since_last_active": (as_of_date.normalize() - max_date.normalize()).days,
     }
